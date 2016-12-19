@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html>
+   <head>
+		<meta charset="utf-8"/>
+		
+      <!--Here to next comment is socket stuff-->
+      <script src="/socket.io/socket.io.js"></script>
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+		<link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1.7.2/themes/start/jquery-ui.css" type="text/css" rel="Stylesheet" /> 
+		<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.3/jquery.min.js"></script>
+		<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8.5/jquery-ui.min.js"></script>
+      <script type ="text/javascript">
+      
+		
+		
+		var screenName;
+		//var screenNames = [];
+		//var pplHere = [];
+		
+		
+		var socket = io.connect();
+      var d;
+		
+		//prevents from markup injections
+		function cleanInput (input) {
+			return $('<div/>').text(input).text();
+		}
+		
+		//updates the chatlog for all users when a message is sent
+      socket.on('updatechat', function (screenName, data){
+         d = new Date();
+			 document.getElementById("chatlog").appendChild(document.createElement("hr"));
+			$('#chatlog').append('<b>' + screenName + ':</b>' + data + '<sub><i> posted at ' + d.getHours() + ":" + d.getMinutes() + '</i></sub><br>');
+         
+      });
+
+		socket.on('pmjoined', function(data){
+			d = new Date();
+			 document.getElementById("chatlog").appendChild(document.createElement("hr"));
+			$('#chatlog').append('<b>' + data.scname + ':</b>' + data.infoo + '<sub><i> posted at ' + d.getHours() + ":" + d.getMinutes() + '</i></sub><br>');
+         			
+		});
+		
+		socket.on('goAhead', function(data){
+			$('#chatlog').empty();
+			d = new Date();
+			 document.getElementById("chatlog").appendChild(document.createElement("hr"));
+			$('#chatlog').append('<b>' + data.sname + ':</b>' + data.info + '<sub><i> posted at ' + d.getHours() + ":" + d.getMinutes() + '</i></sub><br>');
+         			
+		});
+		
+		socket.on('updateprivaterooms', function(data){
+			console.log("private list is update");
+			var passcode = data.password;
+						console.log("password is: " + data.password);
+
+			//if(data.pRooms.size > 0){
+				$.each(data.pRooms, function(key, value) {
+					if(value.owner == socket.name){
+						if(value.name == data.current_room){
+							$('#privateR').append('<div>' + value.name + '  <a href="#" onclick="deleteRoom(\''+value.name+'\')"> Delete</a> </div>');
+										console.log("added value is: "+ value.name);
+	
+						}
+						else {
+							$('#privateR').append('<div><a href="#" onclick="enterPR(\''+value.name+' ' + passcode+'\')">' + value.name + '</a> <a href="#" onclick="deleteRoom(\''+value.name+'\')"> Delete</a></div>');
+						}
+					}else{
+						if(value.name == data.current_room){
+							$('#privateR').append('<div>' + value.name + '</div>');
+										console.log("added value is: "+ value.name);
+	
+						}
+						else {
+							$('#privateR').append('<div><a href="#" onclick="enterPR(\''+value.name+' ' + passcode+'\')">' + value.name + '</a></div>');
+						}
+						
+					}
+				});
+			//}
+		});
+		
+		
+		function deleteRoom(room){
+			socket.emit('deleteroom', room);
+			
+		}
+		
+		function enterPR(info){
+			var code = info.split(" ");
+			vex.dialog.open({
+				overlayClosesOnClick: false,
+				escapeButtonCloses: false,
+				  message: 'Enter Private ChatRoom:',
+					input: [
+						'<input type="text" name="privatepw" placeholder="Password" required/>',
+					].join(''),
+               buttons: [
+						$.extend({}, vex.dialog.buttons.YES, { text: 'Enter!' }),
+					],
+					callback: function (data) {
+						
+						
+						enteredPassword = cleanInput(data.privatepw);
+						console.log('Entered Password ', enteredPassword);
+						console.log('Real Password ', code[1]);
+						console.log('For Room: ', code[0]);
+						socket.emit('allow', {
+							entered: enteredPassword,
+							real: code[1],
+							door: code[0]
+							
+						});
+					
+					}
+			});
+			
+		}
+		
+		socket.on('denied', function(data){
+			vex.dialog.open({
+				overlayClosesOnClick: false,
+				escapeButtonCloses: false,
+				  message: data,
+				  buttons: [
+						$.extend({}, vex.dialog.buttons.YES, { text: 'OK' }),
+					],
+			});
+		});
+		
+		
+		socket.on('connect', function(){
+		// call the server-side function 'adduser' and send one parameter (value of prompt)
+			vex.dialog.open({
+				overlayClosesOnClick: false,
+				escapeButtonCloses: false,
+				  message: 'Create a screenname:',
+					input: [
+						'<input type="text" name="screenName" placeholder="Screenname" required/>',
+					].join(''),
+               buttons: [
+						$.extend({}, vex.dialog.buttons.YES, { text: 'Create' }),
+					],
+					callback: function (data) {
+					console.log('ScreenName ', data.screenName);
+					
+					screenName = cleanInput(data.screenName);
+					socket.name = screenName;
+					socket.emit('adduser', screenName);
+					
+					}
+			});
+		});
+		
+		socket.on('readpm', function(data){
+			d = new Date();
+			document.getElementById("chatlog").appendChild(document.createElement("hr"));
+			$('#chatlog').append('<b>Private Message from ' + data.sender + ':</b>' + data.message + '<sub><i> posted at ' + d.getHours() + ":" + d.getMinutes() + '</i></sub><br>');
+         
+		});
+		
+		socket.on('updateusers', function(data){
+			console.log("New User coming in hot. I can see this!" + data.currRoom.name);
+			//This function is supposed to add to a div the list of screen names that are currently in the chat, but it's not working
+			//var newHTML = [];
+			$('#online').empty();
+			
+			$.each(data.people, function(index, value) {
+				//newHTML.push(value + '<br>');
+				if((socket.name == data.currRoom.owner) || (data.currRoom.owner == 'Default')){
+					console.log(socket.name + " if statement! " + data.currRoom.owner);
+				document.getElementById('online').innerHTML += value + ' <a href="#" onclick="removeUser(\''+value+'\')"> remove </a> &nbsp; &nbsp; <a href="#" onclick="pmUser(\''+value+'\')"> PM </a><br>';
+				}else{
+					console.log(name + " else statement! " + data.currRoom.owner);
+				document.getElementById('online').innerHTML += value + ' <a href="#" onclick="pmUser(\''+value+'\')"> PM </a><br>';
+				}
+			});
+			
+			
+			//document.getElementById('online').innerHTML += data + "<br>";
+			//console.log(data[0] + ": I passed the block of ppl in room");
+		});
+		
+		//socket.on('kickedOut', function(data){
+		//	
+		//});
+		
+		function pmUser(user){
+			//socket.emit('pmuser', user);
+			
+			vex.dialog.open({
+				overlayClosesOnClick: false,
+				escapeButtonCloses: false,
+				  message: 'Type Private Message:',
+					input: [
+						'<input type="text" name="privatemsg" placeholder="message" required/>',
+					].join(''),
+               buttons: [
+						$.extend({}, vex.dialog.buttons.YES, { text: 'Send' }),
+					],
+					callback: function (data) {
+						console.log('Message ', data.privatemsg);
+						
+						privateMsg = cleanInput(data.privatemsg);
+						
+						socket.emit('pmuser', {
+							pm: privateMsg,
+							uname: user
+						});					
+					}
+			});
+			
+		}
+		
+		function removeUser(user){
+			socket.emit('removeuser', user);
+			
+		}
+		
+		
+		//updates the list of rooms when new rooms 
+		socket.on('updaterooms', function(data) {
+			$('#rooms').empty();
+			$.each(data.otherRooms, function(key, value) {
+				if(value.name == data.current_room){
+					$('#rooms').append('<div>' + value.name + '</div>');
+				}
+				else {
+					$('#rooms').append('<div><a href="#" onclick="switchRoom(\''+value.name+'\')">' + value.name + '</a></div>');
+					//console.log("Switched Rooms");
+					
+				}
+			});
+			
+		});
+		
+		
+  
+		$(function(){
+		// when the client clicks CREATE ROOM
+			$('#newroom').click( function() {
+				console.log("Create room has been clicked!");
+				var roomname = cleanInput($('#newroomname').val());
+				if(roomname.length > 0){
+					console.log("name is greater than 0");
+					$('#newroomname').val('');
+					// tell server to execute 'createRoom' and send along one parameter
+					socket.emit('createRoom', roomname);
+					console.log(roomname);
+				}
+			});
+			// when the client hits ENTER on their keyboard
+			$('#newroomname').keypress(function(e) {
+				if(e.which == 13) {
+					$(this).blur();
+					$('#newroom').focus().click();
+				}
+			});
+		});
+		
+		
+		$(function(){
+		// when the client clicks CREATE ROOM
+			$('#privatenewroom').click( function() {
+				console.log("Create private room has been clicked!");
+				var roomname = cleanInput($('#privateroomname').val());
+				var password = cleanInput($('#password').val());
+				if(roomname.length > 0){
+					console.log("name is greater than 0");
+					$('#privateroomname').val('');
+					$('#password').val('');
+					// tell server to execute 'createRoom' and send along one parameter
+					socket.emit('createPrivateRoom', {
+						room: roomname,
+						pass: password
+					});
+					console.log(roomname);
+				}
+			});
+			// when the client hits ENTER on their keyboard
+			$('#password').keypress(function(e) {
+				if(e.which == 13) {
+					$(this).blur();
+					$('#privatenewroom').focus().click();
+				}
+			});
+		});
+		
+		
+		socket.on('joinUrRoom', function(data){
+			switchRoom(data);
+		
+		});
+		//is linked to the hyperlink of roomnames. When a user clicks on a room, they join/ swritch into that room
+		function switchRoom(room){
+			$('#online').empty();
+			$('#chatlog').html("");
+			//$('#online').html("");
+			socket.emit('switchRoom', room);
+		}
+		
+		
+		$(function(){
+		// when the client clicks SEND
+			$('#send').click( function() {
+				var message = cleanInput($('#message_input').val());
+				$('#message_input').val('');
+				// tell server to execute 'sendchat' and send along one parameter
+				socket.emit('sendchat', message);
+				console.log(message);
+			});
+			// when the client hits ENTER on their keyboard
+			$('#message_input').keypress(function(e) {
+				if(e.which == 13) {
+					$(this).blur();
+					$('#send').focus().click();
+				}
+			});
+		});
+      </script>
+      <!-- Rest of the header is modal javascript and css--> 
+      <script src="vex.combined.min.js"></script>
+      <script>vex.defaultOptions.className = 'vex-theme-os';</script>
+      <link rel="stylesheet" href="vex.css" />
+      <link rel="stylesheet" href="vex-theme-os.css" />
+      <title>ChattyPatty Chatbot</title>
+   </head>
+   <body>
+		<div style="float:left;width:100px;border-right:1px solid black;height:300px;padding:10px;">
+			<b>ROOMS</b>
+			<div id="rooms"></div><br><br>
+			<b>PRIVATE ROOMS</b>
+			<div id="privateR"></div><br><br>
+			<input type="text" id="newroomname" style="width: 100px" placeholder="Room Name"/><br>
+			<button id="newroom">Create Room</button><br><br>
+			<input type="text" id="privateroomname" style="width: 100px" placeholder="Room Name"/><br>
+			<input type="text" id="password" style="width: 100px" placeholder="Password"/><br>
+			<button id="privatenewroom">Create Private Room</button>
+		</div>		
+	<div style="float:left;width:300px;height:250px;overflow:scroll-y;padding:10px;">
+      <input type="text" id="message_input"/>
+      <button id="send">Send</button><br>
+      <!--<button id="modal">Join</button><br>-->
+		Who's online?
+		<div id="online"></div>
+      <div id="chatlog"></div>
+	</div>
+		
+   </body>
+</html>
