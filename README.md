@@ -1,5 +1,5 @@
 # chatting-room
-Chat-app using NodeJS and socket.io
+Chat-app using node.js and socket.io
 
 # Access Website
 * Note: the EC2 instance used to serve this site is not currently running
